@@ -8,6 +8,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { getAutoContinueDecision, type AutoContinueConfig } from "./auto-continue.js";
+import { forceNativeRetry } from "./forced-retry.js";
 import {
   isAutoContinueMarker,
   registerInvisibleContinuation,
@@ -28,6 +29,8 @@ const GLOBAL_CONFIG_PATH = join(
 
 export const DEFAULT_CONFIG: AutoContinueConfig = {
   enabled: true,
+  forceNativeRetryForUnhandledErrors: true,
+  notifyOnForcedRetry: true,
   maxConsecutiveAutoContinues: 99,
   notifyOnAutoContinue: true,
   autoContinueOnLength: true,
@@ -109,6 +112,14 @@ export function normalizeConfig(raw: unknown): AutoContinueConfig {
   const config = isRecord(raw) ? raw : {};
   return {
     enabled: typeof config.enabled === "boolean" ? config.enabled : DEFAULT_CONFIG.enabled,
+    forceNativeRetryForUnhandledErrors:
+      typeof config.forceNativeRetryForUnhandledErrors === "boolean"
+        ? config.forceNativeRetryForUnhandledErrors
+        : DEFAULT_CONFIG.forceNativeRetryForUnhandledErrors,
+    notifyOnForcedRetry:
+      typeof config.notifyOnForcedRetry === "boolean"
+        ? config.notifyOnForcedRetry
+        : DEFAULT_CONFIG.notifyOnForcedRetry,
     maxConsecutiveAutoContinues: Math.floor(
       normalizeNonNegativeNumber(
         config.maxConsecutiveAutoContinues,
@@ -274,6 +285,24 @@ export default function piErrorAutoExtension(pi: ExtensionAPI): void {
     if (!config.enabled) {
       resetAutoContinueState();
       return;
+    }
+
+    if (config.forceNativeRetryForUnhandledErrors && event.message.stopReason === "error") {
+      const replacement = forceNativeRetry(
+        event.message,
+        ctx.model?.contextWindow ?? 0,
+      );
+      if (replacement) {
+        resetAutoContinueState();
+        if (config.notifyOnForcedRetry) {
+          safeNotify(
+            ctx,
+            `[${EXTENSION_NAME}] Forcing Pi native retry for: ${event.message.errorMessage}`,
+            "warning",
+          );
+        }
+        return { message: replacement };
+      }
     }
 
     const decision = getAutoContinueDecision(event.message, config, {

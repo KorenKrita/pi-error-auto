@@ -4,6 +4,8 @@ import { getAutoContinueDecision, type AutoContinueConfig } from "./auto-continu
 
 const config: AutoContinueConfig = {
   enabled: true,
+  forceNativeRetryForUnhandledErrors: true,
+  notifyOnForcedRetry: true,
   maxConsecutiveAutoContinues: 99,
   notifyOnAutoContinue: true,
   autoContinueOnLength: true,

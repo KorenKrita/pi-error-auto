@@ -2,6 +2,8 @@ import type { ContextUsage } from "@earendil-works/pi-coding-agent";
 
 export interface AutoContinueConfig {
   enabled: boolean;
+  forceNativeRetryForUnhandledErrors: boolean;
+  notifyOnForcedRetry: boolean;
   maxConsecutiveAutoContinues: number;
   notifyOnAutoContinue: boolean;
   autoContinueOnLength: boolean;

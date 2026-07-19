@@ -45,6 +45,33 @@ function makeContext(cwd: string) {
   };
 }
 
+function makeAssistantError(errorMessage: string) {
+  return {
+    role: "assistant",
+    content: [],
+    api: "openai-responses",
+    provider: "test",
+    model: "test-model",
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0,
+      },
+    },
+    stopReason: "error",
+    errorMessage,
+    timestamp: 1,
+  };
+}
+
 test("normalizes invalid configuration values at the file boundary", () => {
   assert.deepEqual(
     normalizeConfig({
@@ -242,6 +269,59 @@ test("Escape suppresses the loop until real user input", async () => {
       { message: { role: "assistant", stopReason: "length", content: [] } },
       ctx,
     );
+    assert.equal(sentMessages.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("routes unhandled errors through native retry without queuing an invisible continuation", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-error-auto-test-"));
+  try {
+    await writeFile(
+      join(cwd, ".pi-error-auto.json"),
+      `${JSON.stringify({
+        ...DEFAULT_CONFIG,
+        forceNativeRetryForUnhandledErrors: true,
+        notifyOnForcedRetry: false,
+      })}\n`,
+      "utf8",
+    );
+    const { handlers, sentMessages } = setupExtension();
+    const replacement = await handlers.message_end[0](
+      { message: makeAssistantError("unexpected EOF") },
+      makeContext(cwd),
+    );
+
+    assert.equal(
+      replacement?.message.errorMessage,
+      "network error: pi-error-auto forced retry",
+    );
+    assert.equal(sentMessages.length, 0);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("keeps configured invisible error continuation when forced native retry is disabled", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-error-auto-test-"));
+  try {
+    await writeFile(
+      join(cwd, ".pi-error-auto.json"),
+      `${JSON.stringify({
+        ...DEFAULT_CONFIG,
+        forceNativeRetryForUnhandledErrors: false,
+        notifyOnAutoContinue: false,
+      })}\n`,
+      "utf8",
+    );
+    const { handlers, sentMessages } = setupExtension();
+    const replacement = await handlers.message_end[0](
+      { message: makeAssistantError("read ECONNRESET") },
+      makeContext(cwd),
+    );
+
+    assert.equal(replacement, undefined);
     assert.equal(sentMessages.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });

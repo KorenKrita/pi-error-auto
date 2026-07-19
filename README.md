@@ -1,16 +1,18 @@
 # pi-error-auto
 
-`pi-error-auto` automatically resumes retryable Pi turns without sending prompt text such as `continue` to the model.
+`pi-error-auto` recovers interrupted Pi turns without sending prompt text such as `continue` to the model.
 
-It combines two ideas:
+It combines three ideas:
 
+- Forced reclassification of otherwise non-retryable errors into Pi's bounded native retry loop.
 - Hodor-style detection for interrupted streams, length stops, thinking-only stops, and silent stops.
 - Invisible continuation through Pi's native `AgentSession` lifecycle.
 
 ## How it works
 
-When an assistant turn matches a configured trigger, the extension calls `pi.sendMessage()` with a hidden, empty custom marker:
+Errors are handled first. Context overflow remains on Pi's compaction path, Pi-native retryable errors remain unchanged, and other errors are reclassified for Pi's native retry loop when `forceNativeRetryForUnhandledErrors` is enabled. The original error is preserved in message diagnostics.
 
+If an error is not forced, or a non-error stop matches another configured trigger, the extension calls `pi.sendMessage()` with a hidden, empty custom marker:
 ```ts
 pi.sendMessage(
   {
@@ -31,14 +33,15 @@ Each continuation leaves one hidden custom entry in the session journal. It is b
 
 ## Triggers
 
-The extension can continue when:
+The extension can recover when:
 
-1. `stopReason === "error"` matches `errorPatterns` and does not match `deferredErrorPatterns`.
-2. `stopReason === "length"` and enough context remains.
-3. `stopReason === "stop"` after thinking-only output.
-4. A silent stop follows a user message.
-5. A silent stop follows a tool result.
-6. A silent stop follows the extension's own hidden continuation marker.
+1. An assistant error is not context overflow or already retryable, and `forceNativeRetryForUnhandledErrors` is enabled. This uses Pi's native retry settings and backoff.
+2. `stopReason === "error"` matches `errorPatterns`, does not match `deferredErrorPatterns`, and forced native retry is disabled or inapplicable.
+3. `stopReason === "length"` and enough context remains.
+4. `stopReason === "stop"` after thinking-only output.
+5. A silent stop follows a user message.
+6. A silent stop follows a tool result.
+7. A silent stop follows the extension's own hidden continuation marker.
 
 Press `Escape` to suppress the current automatic continuation loop. A later real user input enables automatic continuation again.
 
@@ -84,6 +87,8 @@ Core default configuration (pattern lists abbreviated; `config.json` is the comp
 ```json
 {
   "enabled": true,
+  "forceNativeRetryForUnhandledErrors": true,
+  "notifyOnForcedRetry": true,
   "maxConsecutiveAutoContinues": 99,
   "notifyOnAutoContinue": true,
   "autoContinueOnLength": true,
@@ -94,6 +99,10 @@ Core default configuration (pattern lists abbreviated; `config.json` is the comp
   "errorPatterns": ["ECONNRESET", "ETIMEDOUT"]
 }
 ```
+
+`forceNativeRetryForUnhandledErrors` reclassifies any assistant error that Pi would not normally retry, except context overflow. This includes normally fatal provider errors such as authentication, quota, billing, and invalid-request failures. Attempts and backoff are controlled by Pi's `retry` settings, not `maxConsecutiveAutoContinues`.
+
+`notifyOnForcedRetry` controls the warning shown when an error is reclassified for native retry.
 
 `minRemainingTokensForLengthAutoContinue` prevents a length continuation when known remaining context is at or below the threshold, allowing Pi's compaction path to take over. Set it to `0` to disable this guard.
 

@@ -1,7 +1,7 @@
 {
   "name": "pi-error-auto",
-  "version": "0.1.0",
-  "description": "Automatically resume retryable Pi turns without sending prompt text to the model.",
+  "version": "0.2.0",
+  "description": "Force native retries and invisibly continue interrupted Pi turns.",
   "type": "module",
   "keywords": [
     "pi-package",
@@ -25,6 +25,7 @@
   "files": [
     "index.ts",
     "auto-continue.ts",
+    "forced-retry.ts",
     "invisible-continue.ts",
     "config.json",
     "README.md",
@@ -42,9 +43,11 @@
     ]
   },
   "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
+    "@earendil-works/pi-ai": "^0.80.10",
     "@earendil-works/pi-coding-agent": "^0.80.10",
     "@types/node": "^24.3.0",
     "tsx": "^4.20.6",

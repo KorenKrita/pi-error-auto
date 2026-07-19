@@ -1,5 +1,7 @@
 {
   "enabled": true,
+  "forceNativeRetryForUnhandledErrors": true,
+  "notifyOnForcedRetry": true,
   "maxConsecutiveAutoContinues": 99,
   "notifyOnAutoContinue": true,
   "autoContinueOnLength": true,
