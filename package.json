@@ -1,6 +1,6 @@
 {
   "name": "pi-error-auto",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Force native retries and invisibly continue interrupted Pi turns.",
   "type": "module",
   "keywords": [

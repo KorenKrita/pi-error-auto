@@ -246,7 +246,13 @@ test("stops at the configured consecutive auto-continue limit", async () => {
   }
 });
 
-test("Escape suppresses the loop until real user input", async () => {
+test("does not register Pi's built-in Escape shortcut", () => {
+  const { shortcuts } = setupExtension();
+
+  assert.equal(shortcuts.escape, undefined);
+});
+
+test("an aborted turn suppresses the loop until real user input", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "pi-error-auto-test-"));
   try {
     await writeFile(
@@ -254,10 +260,13 @@ test("Escape suppresses the loop until real user input", async () => {
       `${JSON.stringify({ ...DEFAULT_CONFIG, notifyOnAutoContinue: false })}\n`,
       "utf8",
     );
-    const { handlers, shortcuts, sentMessages } = setupExtension();
+    const { handlers, sentMessages } = setupExtension();
     const ctx = makeContext(cwd);
 
-    shortcuts.escape.handler(ctx);
+    await handlers.message_end[0](
+      { message: { role: "assistant", stopReason: "length", content: [] } },
+      { ...ctx, signal: AbortSignal.abort() },
+    );
     await handlers.message_end[0](
       { message: { role: "assistant", stopReason: "length", content: [] } },
       ctx,

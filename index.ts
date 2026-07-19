@@ -249,13 +249,6 @@ export default function piErrorAutoExtension(pi: ExtensionAPI): void {
     },
   });
 
-  pi.registerShortcut("escape", {
-    description: `Stop the ${EXTENSION_NAME} automatic continuation loop`,
-    handler: () => {
-      suppressAutoContinue();
-    },
-  });
-
   pi.on("input", (event) => {
     if (event.source !== "extension") autoContinueSuppressed = false;
   });
