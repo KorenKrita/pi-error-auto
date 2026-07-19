@@ -14,6 +14,14 @@
     "invisible"
   ],
   "license": "MIT",
+  "homepage": "https://github.com/KorenKrita/pi-error-auto#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KorenKrita/pi-error-auto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/KorenKrita/pi-error-auto/issues"
+  },
   "files": [
     "index.ts",
     "auto-continue.ts",

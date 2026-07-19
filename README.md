@@ -44,19 +44,25 @@ Press `Escape` to suppress the current automatic continuation loop. A later real
 
 ## Install
 
-From the local checkout:
+Install globally from GitHub:
 
 ```bash
-pi install /home/krita/Code/pi-error-auto
+pi install git:github.com/KorenKrita/pi-error-auto
 ```
+
+The extension is enabled immediately with its bundled defaults. Start a new Pi session after installation, or run `/reload` in the current session. No setup command is required unless you want to customize the configuration.
 
 For a one-off run:
 
 ```bash
-pi -e /home/krita/Code/pi-error-auto
+pi -e git:github.com/KorenKrita/pi-error-auto
 ```
 
-Restart Pi after installation, or use `/reload` when the package is loaded from an auto-discovered location.
+For local development:
+
+```bash
+pi install /absolute/path/to/pi-error-auto
+```
 
 ## Configuration
 
