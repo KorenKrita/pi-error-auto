@@ -1,0 +1,45 @@
+{
+  "name": "pi-error-auto",
+  "version": "0.1.0",
+  "description": "Automatically resume retryable Pi turns without sending prompt text to the model.",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "pi",
+    "extension",
+    "retry",
+    "error-recovery",
+    "auto-continue",
+    "invisible"
+  ],
+  "license": "MIT",
+  "files": [
+    "index.ts",
+    "auto-continue.ts",
+    "invisible-continue.ts",
+    "config.json",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "tsx --test *.test.ts",
+    "pack:check": "npm pack --dry-run"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.10",
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2"
+  }
+}
