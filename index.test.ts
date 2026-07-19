@@ -169,6 +169,16 @@ test("keeps the bundled config synchronized with runtime defaults", async () => 
   assert.deepEqual(normalizeConfig(bundledConfig), DEFAULT_CONFIG);
 });
 
+test("keeps deferred errors out of the handled error list", () => {
+  const deferredPatterns = new Set(
+    DEFAULT_CONFIG.deferredErrorPatterns.map((pattern) => pattern.toLowerCase()),
+  );
+  assert.deepEqual(
+    DEFAULT_CONFIG.errorPatterns.filter((pattern) => deferredPatterns.has(pattern.toLowerCase())),
+    [],
+  );
+});
+
 test("stops at the configured consecutive auto-continue limit", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "pi-error-auto-test-"));
   try {

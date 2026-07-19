@@ -72,13 +72,11 @@ export const DEFAULT_CONFIG: AutoContinueConfig = {
     "stream interrupted",
     "stream ended unexpectedly",
     "premature close",
-    "socket hang up",
     "connection reset by peer",
     "connection reset",
     "read ECONNRESET",
     "ECONNRESET",
     "ETIMEDOUT",
-    "fetch failed",
     "unexpected end of JSON input",
     "unexpected end of input",
   ],
@@ -226,9 +224,17 @@ export default function piErrorAutoExtension(pi: ExtensionAPI): void {
         ctx.ui.notify(`[${EXTENSION_NAME}] Config already exists at ${GLOBAL_CONFIG_PATH}`, "warning");
         return;
       }
-      await mkdir(dirname(GLOBAL_CONFIG_PATH), { recursive: true });
-      await copyFile(BUNDLED_CONFIG_PATH, GLOBAL_CONFIG_PATH);
-      ctx.ui.notify(`[${EXTENSION_NAME}] Config copied to ${GLOBAL_CONFIG_PATH}`, "info");
+      try {
+        await mkdir(dirname(GLOBAL_CONFIG_PATH), { recursive: true });
+        await copyFile(BUNDLED_CONFIG_PATH, GLOBAL_CONFIG_PATH);
+        ctx.ui.notify(`[${EXTENSION_NAME}] Config copied to ${GLOBAL_CONFIG_PATH}`, "info");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        ctx.ui.notify(
+          `[${EXTENSION_NAME}] Failed to create config at ${GLOBAL_CONFIG_PATH}: ${message}`,
+          "error",
+        );
+      }
     },
   });
 

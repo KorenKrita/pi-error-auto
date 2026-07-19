@@ -44,13 +44,11 @@
     "stream interrupted",
     "stream ended unexpectedly",
     "premature close",
-    "socket hang up",
     "connection reset by peer",
     "connection reset",
     "read ECONNRESET",
     "ECONNRESET",
     "ETIMEDOUT",
-    "fetch failed",
     "unexpected end of JSON input",
     "unexpected end of input"
   ]
