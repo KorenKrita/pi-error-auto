@@ -280,6 +280,13 @@ export default function piErrorAutoExtension(pi: ExtensionAPI): void {
       return;
     }
 
+    // A user abort (ESC) can surface as stopReason "error" ("This operation was aborted")
+    // when the provider request is cut mid-stream. It is not a failure to recover from.
+    if (ctx.signal?.aborted) {
+      suppressAutoContinue();
+      return;
+    }
+
     if (config.forceNativeRetryForUnhandledErrors && event.message.stopReason === "error") {
       const replacement = forceNativeRetry(
         event.message,
@@ -308,10 +315,6 @@ export default function piErrorAutoExtension(pi: ExtensionAPI): void {
       return;
     }
 
-    if (ctx.signal?.aborted) {
-      suppressAutoContinue();
-      return;
-    }
     if (autoContinueSuppressed || ctx.hasPendingMessages()) return;
 
     if (consecutiveAutoContinues >= config.maxConsecutiveAutoContinues) {

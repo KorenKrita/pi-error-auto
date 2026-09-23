@@ -43,7 +43,7 @@ The extension can recover when:
 6. A silent stop follows a tool result.
 7. A silent stop follows the extension's own hidden continuation marker.
 
-Press `Escape` to use Pi's built-in interrupt handling. Pi aborts the active request or retry and clears queued continuations; the extension observes the aborted signal without registering a conflicting shortcut. A later real user input enables automatic continuation again.
+Press `Escape` to use Pi's built-in interrupt handling. Pi aborts the active request or retry and clears queued continuations; the extension observes the aborted signal without registering a conflicting shortcut. An abort that the provider reports as an error (for example `This operation was aborted`) is neither force-retried nor continued. A later real user input enables automatic continuation again.
 
 ## Install
 

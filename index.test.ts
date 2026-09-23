@@ -336,3 +336,26 @@ test("keeps configured invisible error continuation when forced native retry is 
     await rm(cwd, { recursive: true, force: true });
   }
 });
+
+test("a user abort (ESC) that surfaces as an error is neither force-retried nor continued", async () => {
+  // Real session 01a0c846… 2026-09-22 09:38: ESC mid-request produced stopReason "error"
+  // "This operation was aborted", which was rewritten into a forced network-error retry.
+  const cwd = await mkdtemp(join(tmpdir(), "pi-error-auto-test-"));
+  try {
+    await writeFile(
+      join(cwd, ".pi-error-auto.json"),
+      `${JSON.stringify({ ...DEFAULT_CONFIG, notifyOnForcedRetry: false, notifyOnAutoContinue: false })}\n`,
+      "utf8",
+    );
+    const { handlers, sentMessages } = setupExtension();
+    const replacement = await handlers.message_end[0](
+      { message: makeAssistantError("This operation was aborted") },
+      { ...makeContext(cwd), signal: AbortSignal.abort() },
+    );
+
+    assert.equal(replacement, undefined);
+    assert.equal(sentMessages.length, 0);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
