@@ -92,6 +92,7 @@ Core default configuration (pattern lists abbreviated; `config.json` is the comp
   "skipPermanentErrorsWithJev": true,
   "permanentErrorProbabilityThreshold": 0.7,
   "permanentErrorClassifierTimeoutMs": 3000,
+  "jevModel": "jev-latest",
   "maxConsecutiveAutoContinues": 99,
   "notifyOnAutoContinue": true,
   "autoContinueOnLength": true,
@@ -107,7 +108,15 @@ Core default configuration (pattern lists abbreviated; `config.json` is the comp
 
 `notifyOnForcedRetry` controls the warning shown when an error is reclassified for native retry, or left unchanged because Jev judged it permanent.
 
-`skipPermanentErrorsWithJev` asks the `typesafe/jev-latest` classifier, through Pi's model registry, whether an error that would otherwise be force-retried is a permanent rejection. When its probability is at least `permanentErrorProbabilityThreshold` (0–1), the error is not retried or continued. Jev is consulted only on the forced-retry path; native retryable errors, context overflow, and user aborts never call it. The check fails open: if Jev is not configured, the request errors, or it takes longer than `permanentErrorClassifierTimeoutMs`, the error is force-retried as before. Only the error text (first 8,000 characters) is sent to the classifier.
+`skipPermanentErrorsWithJev` asks TypeSafe's Jev classifier (by default `typesafe/jev-latest`, through Pi's model registry) whether an error that would otherwise be force-retried is a permanent rejection. When its probability is at least `permanentErrorProbabilityThreshold` (0–1), the error is not retried or continued. Jev is consulted only on the forced-retry path; native retryable errors, context overflow, and user aborts never call it. The check fails open: if Jev is not configured, the request errors, or it takes longer than `permanentErrorClassifierTimeoutMs`, the error is force-retried as before. Only the error text (first 8,000 characters) is sent to the classifier.
+
+Jev connection settings:
+
+- `jevModel` (default `"jev-latest"`): the Jev model id.
+- `jevBaseUrl` (default unset): a TypeSafe API base URL. When unset, Jev is looked up as `typesafe/<jevModel>` in Pi's model registry and called through it, so the `typesafe` provider's own URL and credentials apply. When set, the extension calls the `typesafe` provider's classifier directly (`modelRegistry.getProvider("typesafe")`), because the registry's own classify would replace the URL with the provider's; a registered `typesafe/<jevModel>` entry, if any, is reused as the model template. If the running Pi has no `typesafe` provider classifier, the check fails open.
+- `jevApiKey` (default unset): the API key for Jev. A value starting with `$` is read from the environment variable of that name, e.g. `"$TYPESAFE_API_KEY"`. Without `jevBaseUrl` the key is passed only when set, and then takes precedence over the provider's configured credentials; with `jevBaseUrl` and no key the request is sent unauthenticated and normally fails open.
+
+Do not put a plaintext key in the bundled `config.json`: it is tracked by git and ships with the package. Use a `$VAR` reference, and prefer the global config at `~/.pi/agent/extensions/pi-error-auto/config.json` or a project config for local overrides.
 
 `minRemainingTokensForLengthAutoContinue` prevents a length continuation when known remaining context is at or below the threshold, allowing Pi's compaction path to take over. Set it to `0` to disable this guard.
 

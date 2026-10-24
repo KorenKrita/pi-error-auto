@@ -9,6 +9,7 @@ const config: AutoContinueConfig = {
   skipPermanentErrorsWithJev: true,
   permanentErrorProbabilityThreshold: 0.7,
   permanentErrorClassifierTimeoutMs: 3_000,
+  jevModel: "jev-latest",
   maxConsecutiveAutoContinues: 99,
   notifyOnAutoContinue: true,
   autoContinueOnLength: true,

@@ -87,6 +87,21 @@ test("normalizes invalid configuration values at the file boundary", () => {
   );
 });
 
+test("normalizes Jev model, base URL, and API key settings", () => {
+  assert.equal(DEFAULT_CONFIG.jevModel, "jev-latest");
+  assert.equal("jevBaseUrl" in DEFAULT_CONFIG, false);
+  assert.equal("jevApiKey" in DEFAULT_CONFIG, false);
+  assert.deepEqual(normalizeConfig({ jevModel: "  ", jevBaseUrl: "", jevApiKey: 3 }), DEFAULT_CONFIG);
+  const config = normalizeConfig({
+    jevModel: " jev-2 ",
+    jevBaseUrl: " https://jev.example ",
+    jevApiKey: "$TYPESAFE_API_KEY",
+  });
+  assert.equal(config.jevModel, "jev-2");
+  assert.equal(config.jevBaseUrl, "https://jev.example");
+  assert.equal(config.jevApiKey, "$TYPESAFE_API_KEY");
+});
+
 test("filters every private continuation marker from provider context", () => {
   const { handlers } = setupExtension();
   const user = { role: "user", content: [{ type: "text", text: "work" }] };
@@ -513,6 +528,92 @@ test("does not call Jev when forced retry would not apply or the check is disabl
       { ...makeContext(cwd), modelRegistry: registry },
     );
     assert.equal(calls.length, 0);
+  });
+});
+
+test("passes the configured Jev model and $VAR-resolved API key to the registry", async () => {
+  const previous = process.env.PI_ERROR_AUTO_TEST_JEV_KEY;
+  process.env.PI_ERROR_AUTO_TEST_JEV_KEY = "sk-from-env";
+  try {
+    await withJevConfig(
+      { jevModel: "jev-2", jevApiKey: "$PI_ERROR_AUTO_TEST_JEV_KEY" },
+      async (cwd) => {
+        const findCalls: unknown[][] = [];
+        const { registry, calls } = mockRegistry(jevAnswer(0.97));
+        const { handlers } = setupExtension();
+        await handlers.message_end[0](
+          { message: makeAssistantError(ANTHROPIC_TOS_ERROR) },
+          {
+            ...makeContext(cwd),
+            modelRegistry: {
+              ...registry,
+              findOfType: (...args: unknown[]) => {
+                findCalls.push(args);
+                return { id: "jev-2" };
+              },
+            },
+          },
+        );
+        assert.deepEqual(findCalls[0], ["classifier", "typesafe", "jev-2"]);
+        assert.equal(calls[0][2].apiKey, "sk-from-env");
+      },
+    );
+  } finally {
+    if (previous === undefined) delete process.env.PI_ERROR_AUTO_TEST_JEV_KEY;
+    else process.env.PI_ERROR_AUTO_TEST_JEV_KEY = previous;
+  }
+});
+
+test("with jevBaseUrl, calls the typesafe provider directly and fails open without one", async () => {
+  await withJevConfig(
+    { jevModel: "jev-2", jevBaseUrl: "https://jev.example", jevApiKey: "sk-plain" },
+    async (cwd) => {
+      const direct: any[] = [];
+      const { handlers, sentMessages } = setupExtension();
+      const message = makeAssistantError(ANTHROPIC_TOS_ERROR);
+      const result = await handlers.message_end[0](
+        { message },
+        {
+          ...makeContext(cwd),
+          modelRegistry: {
+            findOfType: () => undefined,
+            classify: async () => assert.fail("must not use registry.classify"),
+            getProvider: (id: string) =>
+              id === "typesafe"
+                ? {
+                    classify: async (model: any, _context: any, options: any) => {
+                      direct.push({ model, options });
+                      return { stopReason: "stop", answers: { permanent: { type: "bool", probability: 0.97 } } };
+                    },
+                  }
+                : undefined,
+          },
+        },
+      );
+      assert.equal(result, undefined);
+      assert.equal(sentMessages.length, 0);
+      assert.equal(direct[0].model.id, "jev-2");
+      assert.equal(direct[0].model.baseUrl, "https://jev.example");
+      assert.equal(direct[0].options.apiKey, "sk-plain");
+
+      const fallback = await handlers.message_end[0](
+        { message: makeAssistantError(ANTHROPIC_TOS_ERROR) },
+        { ...makeContext(cwd), modelRegistry: mockRegistry(jevAnswer(0.99)).registry },
+      );
+      assert.equal(fallback?.message.errorMessage, "network error: pi-error-auto forced retry");
+    },
+  );
+});
+
+test("does not pass an apiKey to the registry when jevApiKey is unset", async () => {
+  await withJevConfig({}, async (cwd) => {
+    const { registry, calls } = mockRegistry(jevAnswer(0.1));
+    const { handlers } = setupExtension();
+    await handlers.message_end[0](
+      { message: makeAssistantError(ANTHROPIC_TOS_ERROR) },
+      { ...makeContext(cwd), modelRegistry: registry },
+    );
+    assert.equal("apiKey" in calls[0][2], false);
   });
 });
 

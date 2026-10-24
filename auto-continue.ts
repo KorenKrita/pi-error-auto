@@ -7,6 +7,12 @@ export interface AutoContinueConfig {
   skipPermanentErrorsWithJev: boolean;
   permanentErrorProbabilityThreshold: number;
   permanentErrorClassifierTimeoutMs: number;
+  /** TypeSafe Jev classifier model id. */
+  jevModel: string;
+  /** Override the TypeSafe API base URL; when set, Jev is called directly instead of through Pi's registry. */
+  jevBaseUrl?: string;
+  /** API key for Jev, or `$VAR` to read it from the environment. */
+  jevApiKey?: string;
   maxConsecutiveAutoContinues: number;
   notifyOnAutoContinue: boolean;
   autoContinueOnLength: boolean;

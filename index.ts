@@ -9,7 +9,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { getAutoContinueDecision, type AutoContinueConfig } from "./auto-continue.js";
 import { forceNativeRetry } from "./forced-retry.js";
-import { classifyPermanentError, type ClassifierRegistry } from "./permanent-error.js";
+import {
+  classifyPermanentError,
+  resolveApiKey,
+  type ClassifierRegistry,
+} from "./permanent-error.js";
 import {
   isAutoContinueMarker,
   registerInvisibleContinuation,
@@ -35,6 +39,7 @@ export const DEFAULT_CONFIG: AutoContinueConfig = {
   skipPermanentErrorsWithJev: true,
   permanentErrorProbabilityThreshold: 0.7,
   permanentErrorClassifierTimeoutMs: 3_000,
+  jevModel: "jev-latest",
   maxConsecutiveAutoContinues: 99,
   notifyOnAutoContinue: true,
   autoContinueOnLength: true,
@@ -108,6 +113,10 @@ function normalizeStringList(value: unknown, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
+function normalizeOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function normalizeNonNegativeNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, value) : fallback;
 }
@@ -139,6 +148,14 @@ export function normalizeConfig(raw: unknown): AutoContinueConfig {
       config.permanentErrorClassifierTimeoutMs,
       DEFAULT_CONFIG.permanentErrorClassifierTimeoutMs,
     ),
+    jevModel: normalizeOptionalString(config.jevModel) ?? DEFAULT_CONFIG.jevModel,
+    // Optional keys are omitted, not set to undefined, so configs compare cleanly.
+    ...(normalizeOptionalString(config.jevBaseUrl) && {
+      jevBaseUrl: normalizeOptionalString(config.jevBaseUrl),
+    }),
+    ...(normalizeOptionalString(config.jevApiKey) && {
+      jevApiKey: normalizeOptionalString(config.jevApiKey),
+    }),
     maxConsecutiveAutoContinues: Math.floor(
       normalizeNonNegativeNumber(
         config.maxConsecutiveAutoContinues,
@@ -319,6 +336,9 @@ export default function piErrorAutoExtension(pi: ExtensionAPI): void {
             threshold: config.permanentErrorProbabilityThreshold,
             timeoutMs: config.permanentErrorClassifierTimeoutMs,
             signal: ctx.signal,
+            model: config.jevModel,
+            baseUrl: config.jevBaseUrl,
+            apiKey: resolveApiKey(config.jevApiKey),
           },
         );
         if (ctx.signal?.aborted) {
