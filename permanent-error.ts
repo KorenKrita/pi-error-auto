@@ -20,7 +20,8 @@ export const PERMANENT_ERROR_QUESTION = {
     "a malformed or invalid request that will fail identically (invalid parameter, schema or validation error, unsupported field). " +
     "Transient errors: network failures, connection resets, timeouts, 5xx server errors, overloaded or capacity errors, " +
     "rate limits that ask to retry later, upstream proxy or gateway hiccups, interrupted streams, " +
-    "a random 404 or bad gateway from a load balancer, and empty or unrecognizable errors.",
+    "a random 404 or bad gateway from a load balancer, a proxy or account pool reporting that no credential or account is available right now " +
+    "(such as auth_unavailable or all accounts cooling down), a status code with no body, and empty or unrecognizable errors.",
   criteria: {
     true:
       "Permanent: retrying the same request is pointless because it will be rejected again " +
