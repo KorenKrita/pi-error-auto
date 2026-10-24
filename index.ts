@@ -9,6 +9,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { getAutoContinueDecision, type AutoContinueConfig } from "./auto-continue.js";
 import { forceNativeRetry } from "./forced-retry.js";
+import { classifyPermanentError, type ClassifierRegistry } from "./permanent-error.js";
 import {
   isAutoContinueMarker,
   registerInvisibleContinuation,
@@ -31,6 +32,9 @@ export const DEFAULT_CONFIG: AutoContinueConfig = {
   enabled: true,
   forceNativeRetryForUnhandledErrors: true,
   notifyOnForcedRetry: true,
+  skipPermanentErrorsWithJev: true,
+  permanentErrorProbabilityThreshold: 0.7,
+  permanentErrorClassifierTimeoutMs: 3_000,
   maxConsecutiveAutoContinues: 99,
   notifyOnAutoContinue: true,
   autoContinueOnLength: true,
@@ -120,6 +124,21 @@ export function normalizeConfig(raw: unknown): AutoContinueConfig {
       typeof config.notifyOnForcedRetry === "boolean"
         ? config.notifyOnForcedRetry
         : DEFAULT_CONFIG.notifyOnForcedRetry,
+    skipPermanentErrorsWithJev:
+      typeof config.skipPermanentErrorsWithJev === "boolean"
+        ? config.skipPermanentErrorsWithJev
+        : DEFAULT_CONFIG.skipPermanentErrorsWithJev,
+    permanentErrorProbabilityThreshold: Math.min(
+      1,
+      normalizeNonNegativeNumber(
+        config.permanentErrorProbabilityThreshold,
+        DEFAULT_CONFIG.permanentErrorProbabilityThreshold,
+      ),
+    ),
+    permanentErrorClassifierTimeoutMs: normalizeNonNegativeNumber(
+      config.permanentErrorClassifierTimeoutMs,
+      DEFAULT_CONFIG.permanentErrorClassifierTimeoutMs,
+    ),
     maxConsecutiveAutoContinues: Math.floor(
       normalizeNonNegativeNumber(
         config.maxConsecutiveAutoContinues,
@@ -292,6 +311,34 @@ export default function piErrorAutoExtension(pi: ExtensionAPI): void {
         event.message,
         ctx.model?.contextWindow ?? 0,
       );
+      if (replacement && config.skipPermanentErrorsWithJev) {
+        const verdict = await classifyPermanentError(
+          ctx.modelRegistry as unknown as ClassifierRegistry | undefined,
+          event.message.errorMessage ?? "",
+          {
+            threshold: config.permanentErrorProbabilityThreshold,
+            timeoutMs: config.permanentErrorClassifierTimeoutMs,
+            signal: ctx.signal,
+          },
+        );
+        if (ctx.signal?.aborted) {
+          suppressAutoContinue();
+          return;
+        }
+        if (verdict.permanent) {
+          // Leave the original error untouched so Pi reports it as-is; do not
+          // fall through to invisible continuation either.
+          resetAutoContinueState();
+          if (config.notifyOnForcedRetry) {
+            safeNotify(
+              ctx,
+              `[${EXTENSION_NAME}] Not retrying permanent error (Jev p=${verdict.probability.toFixed(2)}).`,
+              "warning",
+            );
+          }
+          return;
+        }
+      }
       if (replacement) {
         resetAutoContinueState();
         if (config.notifyOnForcedRetry) {

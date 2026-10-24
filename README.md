@@ -10,7 +10,7 @@ It combines three ideas:
 
 ## How it works
 
-Errors are handled first. Context overflow remains on Pi's compaction path, Pi-native retryable errors remain unchanged, and other errors are reclassified for Pi's native retry loop when `forceNativeRetryForUnhandledErrors` is enabled. The original error is preserved in message diagnostics.
+Errors are handled first. Context overflow remains on Pi's compaction path, Pi-native retryable errors remain unchanged, and other errors are reclassified for Pi's native retry loop when `forceNativeRetryForUnhandledErrors` is enabled. Before reclassifying, the extension asks TypeSafe's Jev classifier whether the error is a permanent rejection (policy or Terms of Service refusal, authentication or permission failure, billing or quota exhaustion, unknown model, malformed request); such errors are left unchanged so Pi reports them instead of retrying. The original error is preserved in message diagnostics.
 
 If an error is not forced, or a non-error stop matches another configured trigger, the extension calls `pi.sendMessage()` with a hidden, empty custom marker:
 ```ts
@@ -35,7 +35,7 @@ Each continuation leaves one hidden custom entry in the session journal. It is b
 
 The extension can recover when:
 
-1. An assistant error is not context overflow or already retryable, and `forceNativeRetryForUnhandledErrors` is enabled. This uses Pi's native retry settings and backoff.
+1. An assistant error is not context overflow, already retryable, or judged permanent by Jev, and `forceNativeRetryForUnhandledErrors` is enabled. This uses Pi's native retry settings and backoff.
 2. `stopReason === "error"` matches `errorPatterns`, does not match `deferredErrorPatterns`, and forced native retry is disabled or inapplicable.
 3. `stopReason === "length"` and enough context remains.
 4. `stopReason === "stop"` after thinking-only output.
@@ -89,6 +89,9 @@ Core default configuration (pattern lists abbreviated; `config.json` is the comp
   "enabled": true,
   "forceNativeRetryForUnhandledErrors": true,
   "notifyOnForcedRetry": true,
+  "skipPermanentErrorsWithJev": true,
+  "permanentErrorProbabilityThreshold": 0.7,
+  "permanentErrorClassifierTimeoutMs": 3000,
   "maxConsecutiveAutoContinues": 99,
   "notifyOnAutoContinue": true,
   "autoContinueOnLength": true,
@@ -100,9 +103,11 @@ Core default configuration (pattern lists abbreviated; `config.json` is the comp
 }
 ```
 
-`forceNativeRetryForUnhandledErrors` reclassifies any assistant error that Pi would not normally retry, except context overflow. This includes normally fatal provider errors such as authentication, quota, billing, and invalid-request failures. Attempts and backoff are controlled by Pi's `retry` settings, not `maxConsecutiveAutoContinues`.
+`forceNativeRetryForUnhandledErrors` reclassifies any assistant error that Pi would not normally retry, except context overflow. This includes normally fatal provider errors such as authentication, quota, billing, and invalid-request failures, unless `skipPermanentErrorsWithJev` identifies them as permanent. Attempts and backoff are controlled by Pi's `retry` settings, not `maxConsecutiveAutoContinues`.
 
-`notifyOnForcedRetry` controls the warning shown when an error is reclassified for native retry.
+`notifyOnForcedRetry` controls the warning shown when an error is reclassified for native retry, or left unchanged because Jev judged it permanent.
+
+`skipPermanentErrorsWithJev` asks the `typesafe/jev-latest` classifier, through Pi's model registry, whether an error that would otherwise be force-retried is a permanent rejection. When its probability is at least `permanentErrorProbabilityThreshold` (0–1), the error is not retried or continued. Jev is consulted only on the forced-retry path; native retryable errors, context overflow, and user aborts never call it. The check fails open: if Jev is not configured, the request errors, or it takes longer than `permanentErrorClassifierTimeoutMs`, the error is force-retried as before. Only the error text (first 8,000 characters) is sent to the classifier.
 
 `minRemainingTokensForLengthAutoContinue` prevents a length continuation when known remaining context is at or below the threshold, allowing Pi's compaction path to take over. Set it to `0` to disable this guard.
 

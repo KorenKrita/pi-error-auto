@@ -359,3 +359,176 @@ test("a user abort (ESC) that surfaces as an error is neither force-retried nor 
     await rm(cwd, { recursive: true, force: true });
   }
 });
+
+const ANTHROPIC_TOS_ERROR =
+  "This request was blocked as it seems to violate Anthropic's Terms of Service restrictions on reverse engineering or duplicating model outputs. If you believe this was in error, please contact support.";
+
+function mockRegistry(classify: (...args: any[]) => Promise<unknown>) {
+  const calls: any[][] = [];
+  return {
+    calls,
+    registry: {
+      findOfType: () => ({ id: "jev-latest" }),
+      classify: (...args: any[]) => {
+        calls.push(args);
+        return classify(...args);
+      },
+    },
+  };
+}
+
+function jevAnswer(probability: number) {
+  return async () => ({ stopReason: "stop", answers: { permanent: { type: "bool", probability } } });
+}
+
+async function withJevConfig(
+  overrides: Record<string, unknown>,
+  run: (cwd: string) => Promise<void>,
+) {
+  const cwd = await mkdtemp(join(tmpdir(), "pi-error-auto-test-"));
+  try {
+    await writeFile(
+      join(cwd, ".pi-error-auto.json"),
+      `${JSON.stringify({
+        ...DEFAULT_CONFIG,
+        notifyOnForcedRetry: false,
+        notifyOnAutoContinue: false,
+        ...overrides,
+      })}\n`,
+      "utf8",
+    );
+    await run(cwd);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+}
+
+test("a permanent rejection judged by Jev keeps the original error and is not retried", async () => {
+  await withJevConfig({}, async (cwd) => {
+    const { handlers, sentMessages } = setupExtension();
+    const { registry, calls } = mockRegistry(jevAnswer(0.97));
+    const message = makeAssistantError(ANTHROPIC_TOS_ERROR);
+    const result = await handlers.message_end[0](
+      { message },
+      { ...makeContext(cwd), modelRegistry: registry },
+    );
+
+    assert.equal(result, undefined);
+    assert.equal(message.errorMessage, ANTHROPIC_TOS_ERROR);
+    assert.equal(sentMessages.length, 0);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0][1].state, { error: ANTHROPIC_TOS_ERROR });
+  });
+});
+
+test("a transient error judged by Jev is still force-retried", async () => {
+  await withJevConfig({}, async (cwd) => {
+    const { handlers } = setupExtension();
+    const { registry, calls } = mockRegistry(jevAnswer(0.1));
+    const result = await handlers.message_end[0](
+      { message: makeAssistantError("unexpected EOF") },
+      { ...makeContext(cwd), modelRegistry: registry },
+    );
+
+    assert.equal(result?.message.errorMessage, "network error: pi-error-auto forced retry");
+    assert.equal(calls.length, 1);
+  });
+});
+
+test("the permanent threshold is configurable", async () => {
+  await withJevConfig({ permanentErrorProbabilityThreshold: 0.95 }, async (cwd) => {
+    const { handlers } = setupExtension();
+    const { registry } = mockRegistry(jevAnswer(0.9));
+    const result = await handlers.message_end[0](
+      { message: makeAssistantError(ANTHROPIC_TOS_ERROR) },
+      { ...makeContext(cwd), modelRegistry: registry },
+    );
+    assert.equal(result?.message.errorMessage, "network error: pi-error-auto forced retry");
+  });
+});
+
+test("fails open to forced retry when Jev is missing, errors, throws, or times out", async () => {
+  await withJevConfig({ permanentErrorClassifierTimeoutMs: 20 }, async (cwd) => {
+    const registries = [
+      undefined,
+      { findOfType: () => undefined, classify: async () => assert.fail("must not classify") },
+      mockRegistry(async () => ({ stopReason: "error", answers: {}, errorMessage: "503" })).registry,
+      mockRegistry(async () => {
+        throw new Error("boom");
+      }).registry,
+      mockRegistry(() => new Promise(() => {})).registry,
+    ];
+    for (const modelRegistry of registries) {
+      const { handlers } = setupExtension();
+      const result = await handlers.message_end[0](
+        { message: makeAssistantError(ANTHROPIC_TOS_ERROR) },
+        { ...makeContext(cwd), modelRegistry },
+      );
+      assert.equal(result?.message.errorMessage, "network error: pi-error-auto forced retry");
+    }
+  });
+});
+
+test("does not call Jev when forced retry would not apply or the check is disabled", async () => {
+  await withJevConfig({}, async (cwd) => {
+    const { registry, calls } = mockRegistry(jevAnswer(0.99));
+    const ctx = { ...makeContext(cwd), modelRegistry: registry };
+    const { handlers } = setupExtension();
+
+    // Pi-native retryable, context overflow, already forced, user abort, non-error stop.
+    await handlers.message_end[0]({ message: makeAssistantError("503 service unavailable") }, ctx);
+    await handlers.message_end[0]({ message: makeAssistantError("prompt is too long") }, ctx);
+    const forced = await handlers.message_end[0](
+      { message: makeAssistantError("unexpected EOF") },
+      { ...ctx, modelRegistry: mockRegistry(jevAnswer(0)).registry },
+    );
+    await handlers.message_end[0]({ message: forced.message }, ctx);
+    await handlers.message_end[0](
+      { message: makeAssistantError(ANTHROPIC_TOS_ERROR) },
+      { ...ctx, signal: AbortSignal.abort() },
+    );
+    await handlers.message_end[0](
+      { message: { role: "assistant", stopReason: "length", content: [] } },
+      ctx,
+    );
+    assert.equal(calls.length, 0);
+  });
+
+  await withJevConfig({ skipPermanentErrorsWithJev: false }, async (cwd) => {
+    const { registry, calls } = mockRegistry(jevAnswer(0.99));
+    const { handlers } = setupExtension();
+    const result = await handlers.message_end[0](
+      { message: makeAssistantError(ANTHROPIC_TOS_ERROR) },
+      { ...makeContext(cwd), modelRegistry: registry },
+    );
+    assert.equal(result?.message.errorMessage, "network error: pi-error-auto forced retry");
+    assert.equal(calls.length, 0);
+  });
+
+  await withJevConfig({ forceNativeRetryForUnhandledErrors: false }, async (cwd) => {
+    const { registry, calls } = mockRegistry(jevAnswer(0.99));
+    const { handlers } = setupExtension();
+    await handlers.message_end[0](
+      { message: makeAssistantError(ANTHROPIC_TOS_ERROR) },
+      { ...makeContext(cwd), modelRegistry: registry },
+    );
+    assert.equal(calls.length, 0);
+  });
+});
+
+test("a user abort during classification neither retries nor continues", async () => {
+  await withJevConfig({}, async (cwd) => {
+    const controller = new AbortController();
+    const { registry } = mockRegistry(async () => {
+      controller.abort();
+      return { stopReason: "aborted", answers: {} };
+    });
+    const { handlers, sentMessages } = setupExtension();
+    const result = await handlers.message_end[0](
+      { message: makeAssistantError("read ECONNRESET weird") },
+      { ...makeContext(cwd), modelRegistry: registry, signal: controller.signal },
+    );
+    assert.equal(result, undefined);
+    assert.equal(sentMessages.length, 0);
+  });
+});

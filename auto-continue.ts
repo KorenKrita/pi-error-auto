@@ -4,6 +4,9 @@ export interface AutoContinueConfig {
   enabled: boolean;
   forceNativeRetryForUnhandledErrors: boolean;
   notifyOnForcedRetry: boolean;
+  skipPermanentErrorsWithJev: boolean;
+  permanentErrorProbabilityThreshold: number;
+  permanentErrorClassifierTimeoutMs: number;
   maxConsecutiveAutoContinues: number;
   notifyOnAutoContinue: boolean;
   autoContinueOnLength: boolean;

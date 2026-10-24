@@ -26,6 +26,7 @@
     "index.ts",
     "auto-continue.ts",
     "forced-retry.ts",
+    "permanent-error.ts",
     "invisible-continue.ts",
     "config.json",
     "README.md",
