@@ -114,7 +114,7 @@ Jev connection settings:
 
 - `jevModel` (default `"jev-latest"`): the Jev model id.
 - `jevBaseUrl` (default unset): a TypeSafe API base URL. When unset, Jev is looked up as `typesafe/<jevModel>` in Pi's model registry and called through it, so the `typesafe` provider's own URL and credentials apply. When set, the extension calls the `typesafe` provider's classifier directly (`modelRegistry.getProvider("typesafe")`), because the registry's own classify would replace the URL with the provider's; a registered `typesafe/<jevModel>` entry, if any, is reused as the model template. If the running Pi has no `typesafe` provider classifier, the check fails open.
-- `jevApiKey` (default unset): the API key for Jev. A value starting with `$` is read from the environment variable of that name, e.g. `"$TYPESAFE_API_KEY"`. Without `jevBaseUrl` the key is passed only when set, and then takes precedence over the provider's configured credentials; with `jevBaseUrl` and no key the request is sent unauthenticated and normally fails open.
+- `jevApiKey` (default unset): the API key for Jev. A value starting with `$` is read from the environment variable of that name, e.g. `"$TYPESAFE_API_KEY"`. Without `jevBaseUrl` the key is passed only when set, and then takes precedence over the provider's configured credentials; with `jevBaseUrl` a non-empty key is required: without one Pi rejects the call locally (`No API key for provider: typesafe`), nothing is sent, and the check fails open.
 
 Do not put a plaintext key in the bundled `config.json`: it is tracked by git and ships with the package. Use a `$VAR` reference, and prefer the global config at `~/.pi/agent/extensions/pi-error-auto/config.json` or a project config for local overrides.
 
