@@ -27,9 +27,9 @@ pi.sendMessage(
 );
 ```
 
-A `context` hook removes every marker before provider serialization. The LLM therefore receives no new prompt text, while Pi still owns the busy state, follow-up queue, retries, compaction, abort handling, and `agent_settled` lifecycle.
+A `context` hook empties every marker in place before provider serialization. Pi keeps the marker's position in the context array (so mid-conversation system messages are not folded into the leading system prompt), but its empty content contributes no prompt text. Pi still owns the busy state, follow-up queue, retries, compaction, abort handling, and `agent_settled` lifecycle.
 
-Each continuation leaves one hidden custom entry in the session journal. It is bookkeeping only: it is not shown in the TUI and is filtered from every LLM request.
+Each continuation leaves one hidden custom entry in the session journal. It is bookkeeping only: it is not shown in the TUI and contributes no content to LLM requests.
 
 ## Triggers
 

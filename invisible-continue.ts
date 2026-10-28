@@ -10,8 +10,11 @@ export function isAutoContinueMarker(message: unknown): boolean {
 
 export function registerInvisibleContinuation(pi: ExtensionAPI): void {
   pi.on("context", (event) => {
-    const messages = event.messages.filter((message) => !isAutoContinueMarker(message));
-    if (messages.length !== event.messages.length) return { messages };
+    // Keep the same objects at the same indices. Removing a marker makes Pi fold
+    // mid-conversation system messages into its leading system prompt.
+    for (const message of event.messages) {
+      if (isAutoContinueMarker(message) && message.role === "custom") message.content = [];
+    }
   });
 }
 

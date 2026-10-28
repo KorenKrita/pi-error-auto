@@ -102,18 +102,21 @@ test("normalizes Jev model, base URL, and API key settings", () => {
   assert.equal(config.jevApiKey, "$TYPESAFE_API_KEY");
 });
 
-test("filters every private continuation marker from provider context", () => {
+test("neutralizes continuation markers without changing context membership or identities", () => {
   const { handlers } = setupExtension();
   const user = { role: "user", content: [{ type: "text", text: "work" }] };
   const marker = {
     role: "custom",
     customType: AUTO_CONTINUE_CUSTOM_TYPE,
-    content: [],
+    content: [{ type: "text", text: "stale marker text" }],
   };
-
-  assert.deepEqual(handlers.context[0]({ messages: [marker, user, marker] }, {}), {
-    messages: [user],
-  });
+  const messages = [marker, user, marker];
+  const original = [...messages];
+  assert.equal(handlers.context[0]({ messages }, {}), undefined);
+  assert.equal(messages.length, original.length);
+  messages.forEach((message, i) => assert.equal(message, original[i]));
+  assert.deepEqual(marker.content, []);
+  assert.deepEqual(user.content, [{ type: "text", text: "work" }]);
 });
 
 test("uses Hodor-style triggers with an invisible follow-up transport", async () => {
